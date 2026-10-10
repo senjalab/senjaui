@@ -1,0 +1,49 @@
+# Binaries and build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.bin
+
+# Test binaries, coverage, and profiling
+*.test
+*.out
+profile.pprof
+cpu.pprof
+mem.pprof
+trace.out
+coverage.html
+
+# Build and output directories
+bin/
+dist/
+build/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# OS metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Temporary and log files
+tmp/
+*.tmp
+*.log
+
