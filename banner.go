@@ -317,6 +317,27 @@ func (b *Banner) SetNineSlice(ns *eimage.NineSlice) {
 	}
 }
 
+// SetImage dynamically updates the banner's nine-slice texture with explicit border margins.
+// The nine-slice will adapt automatically without breaking any hierarchy or child transforms.
+func (b *Banner) SetImage(img *ebiten.Image, top, right, bottom, left int) {
+	b.SetNineSliceConfig(NewNineSliceFromImage(img, top, right, bottom, left))
+}
+
+// SetImageAuto dynamically updates the banner's nine-slice texture, automatically computing optimal border margins.
+func (b *Banner) SetImageAuto(img *ebiten.Image) {
+	b.SetNineSliceConfig(NewNineSliceAuto(img))
+}
+
+// SetImageFile dynamically loads an image file from disk and updates the banner's nine-slice texture.
+func (b *Banner) SetImageFile(path string, top, right, bottom, left int) error {
+	img, err := LoadImageFromFile(path)
+	if err != nil {
+		return err
+	}
+	b.SetImage(img, top, right, bottom, left)
+	return nil
+}
+
 // SetBackgroundColor sets a solid color background.
 func (b *Banner) SetBackgroundColor(c color.Color) {
 	b.SetNineSliceConfig(NewNineSliceColorConfig(c))

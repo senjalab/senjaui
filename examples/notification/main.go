@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/ebitenui/ebitenui"
 	"github.com/ebitenui/ebitenui/widget"
@@ -19,7 +21,17 @@ const (
 	screenHeight = 600
 )
 
-// Game implements ebiten.Game and holds UI state.
+// Skin represents a raster 9-slice image preset (no vectors).
+type Skin struct {
+	Name   string
+	Image  *ebiten.Image
+	Top    int
+	Right  int
+	Bottom int
+	Left   int
+}
+
+// Game implements ebiten.Game and holds interactive UI state.
 type Game struct {
 	ui           *ebitenui.UI
 	banner       *senjaui.Banner
@@ -30,56 +42,100 @@ type Game struct {
 	animStyle    string
 	sizeMode     int
 	lastClickLog string
+
+	// Dynamic skins array showcasing runtime image swapping
+	skins       []Skin
+	currentSkin int
+}
+
+func resolveAssetPath(name string) string {
+	candidates := []string{
+		filepath.Join("assets", name),
+		filepath.Join("..", "assets", name),
+		filepath.Join("..", "..", "assets", name),
+		name,
+		filepath.Join("..", name),
+		filepath.Join("..", "..", name),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return filepath.Join("assets", name)
 }
 
 func NewGame() *Game {
 	g := &Game{
 		fontFace:     text.Face(text.NewGoXFace(basicfont.Face7x13)),
-		statusText:   "Status: Notification Banner Open. Click either card or button below.",
+		statusText:   "Ready: Using assets/ui_banner.png. Press [C] or button to switch images dynamically.",
 		animStyle:    "Scale & Fade",
 		lastClickLog: "No events yet",
 	}
 
+	g.loadSkins()
 	g.setupUI()
 	return g
 }
 
+func (g *Game) loadSkins() {
+	// 1. Primary skin: Load user's provided assets/ui_banner.png asset
+	assetPath := resolveAssetPath("ui_banner.png")
+	userImg, userCfg, err := senjaui.LoadNineSliceImageFile(assetPath)
+	if err != nil {
+		log.Printf("Warning: failed to load %q (%v), generating fallback raster banner", assetPath, err)
+		userImg = senjaui.CreateProceduralNineSliceImage(32, 6, color.RGBA{18, 22, 32, 240}, color.RGBA{212, 175, 55, 255}, 3)
+		userCfg = senjaui.NewNineSliceConfig(userImg, 6, 6, 6, 6)
+	}
+
+	g.skins = []Skin{
+		{
+			Name:   "assets/ui_banner.png (Original Asset)",
+			Image:  userImg,
+			Top:    userCfg.Top,
+			Right:  userCfg.Right,
+			Bottom: userCfg.Bottom,
+			Left:   userCfg.Left,
+		},
+		{
+			Name:   "Cyber Neon (Raster 32x32)",
+			Image:  senjaui.CreateProceduralNineSliceImage(32, 4, color.RGBA{14, 24, 40, 245}, color.RGBA{0, 220, 255, 255}, 3),
+			Top:    6,
+			Right:  6,
+			Bottom: 6,
+			Left:   6,
+		},
+		{
+			Name:   "Ancient Gold (Raster 32x32)",
+			Image:  senjaui.CreateProceduralNineSliceImage(32, 5, color.RGBA{35, 25, 15, 245}, color.RGBA{240, 180, 40, 255}, 3),
+			Top:    6,
+			Right:  6,
+			Bottom: 6,
+			Left:   6,
+		},
+		{
+			Name:   "Molten Obsidian (Raster 32x32)",
+			Image:  senjaui.CreateProceduralNineSliceImage(32, 4, color.RGBA{38, 14, 18, 245}, color.RGBA{255, 75, 60, 255}, 3),
+			Top:    6,
+			Right:  6,
+			Bottom: 6,
+			Left:   6,
+		},
+	}
+}
+
 func (g *Game) setupUI() {
-	// 1. Procedural 9-slice backgrounds for game aesthetic
-	bannerImg := senjaui.CreateProceduralNineSliceImage(
-		32, 6,
-		color.RGBA{18, 22, 32, 240}, // Deep midnight blue background
-		color.RGBA{212, 175, 55, 255}, // Elegant gold border
-		3,
-	)
-	bannerCfg := senjaui.NewNineSliceConfig(bannerImg, 8, 8, 8, 8)
+	activeSkin := g.skins[g.currentSkin]
 
-	cardAcceptImg := senjaui.CreateProceduralNineSliceImage(
-		24, 4,
-		color.RGBA{15, 35, 25, 245}, // Dark emerald fill
-		color.RGBA{46, 204, 113, 255}, // Bright emerald border
-		2,
-	)
-	cardAcceptCfg := senjaui.NewNineSliceConfig(cardAcceptImg, 6, 6, 6, 6)
-
-	cardDismissImg := senjaui.CreateProceduralNineSliceImage(
-		24, 4,
-		color.RGBA{38, 18, 22, 245}, // Dark crimson fill
-		color.RGBA{231, 76, 60, 255}, // Bright coral red border
-		2,
-	)
-	cardDismissCfg := senjaui.NewNineSliceConfig(cardDismissImg, 6, 6, 6, 6)
-
-	// 2. Build Parent Notification Banner
-	// Centered on screen using AnchorCenter and PivotCenter
+	// 1. Build Parent Notification Banner using active skin (ui_banner.png)
 	g.banner = senjaui.NewBanner(
 		senjaui.WithID("parent-notification-banner"),
 		senjaui.WithPosition(float64(screenWidth)/2.0, float64(screenHeight)/2.0),
-		senjaui.WithSize(560, 320),
+		senjaui.WithSize(560, 330),
 		senjaui.WithAnchor(senjaui.AnchorCenter),
 		senjaui.WithPivot(senjaui.PivotCenter),
 		senjaui.WithPadding(24, 24, 24, 24),
-		senjaui.WithNineSliceConfig(bannerCfg),
+		senjaui.WithImage(activeSkin.Image, activeSkin.Top, activeSkin.Right, activeSkin.Bottom, activeSkin.Left),
 		senjaui.WithAnimation(senjaui.AnimScaleAndFade, 0.35),
 		senjaui.WithEase(senjaui.EaseOutBack),
 	)
@@ -95,11 +151,11 @@ func (g *Game) setupUI() {
 
 	// Hierarchical event bubbling: Any click on nested cards routes here!
 	g.banner.OnContentClick(func(childID string) {
-		g.lastClickLog = fmt.Sprintf("Parent Banner received click from childID: %q", childID)
+		g.lastClickLog = fmt.Sprintf("Parent Banner caught click from: %q", childID)
 		g.statusText = fmt.Sprintf("Action handled: %s", childID)
 	})
 
-	// Add banner header text widgets
+	// Header container with title, description, and interactive skin swap button
 	headerContainer := widget.NewContainer(
 		widget.ContainerOpts.Layout(widget.NewRowLayout(
 			widget.RowLayoutOpts.Direction(widget.DirectionVertical),
@@ -108,20 +164,40 @@ func (g *Game) setupUI() {
 	)
 
 	titleLabel := senjaui.CreateLabel("[QUEST AVAILABLE] The Ruins of Senja", &g.fontFace, color.RGBA{255, 220, 100, 255})
-	descLabel := senjaui.CreateLabel("An ancient beacon was detected. Choose your team's deployment:", &g.fontFace, color.RGBA{200, 210, 230, 255})
+	descLabel := senjaui.CreateLabel("Ancient beacon detected. Sliced from assets/ui_banner.png without any vectors.", &g.fontFace, color.RGBA{210, 220, 235, 255})
+
+	btnSwapSkin := senjaui.CreateStyledButton(
+		"SWAP BANNER IMAGE (DYNAMIC 9-SLICE)",
+		&g.fontFace,
+		color.RGBA{45, 55, 80, 255},
+		color.RGBA{65, 80, 115, 255},
+		color.RGBA{30, 40, 60, 255},
+		color.RGBA{255, 230, 120, 255},
+		func() {
+			g.cycleSkin()
+		},
+	)
+
 	headerContainer.AddChild(titleLabel)
 	headerContainer.AddChild(descLabel)
+	headerContainer.AddChild(btnSwapSkin)
 	g.banner.AddWidget(headerContainer)
 
-	// 3. Build Nested Card 1: Quest Acceptance Card (Anchored bottom-left)
+	// 2. Build Nested Card 1: Quest Acceptance Card (Raster 9-slice, bottom-left)
+	cardAcceptImg := senjaui.CreateProceduralNineSliceImage(
+		24, 4,
+		color.RGBA{15, 35, 25, 245},
+		color.RGBA{46, 204, 113, 255},
+		2,
+	)
 	g.cardAccept = senjaui.NewBanner(
 		senjaui.WithID("card-accept"),
 		senjaui.WithPosition(24, -20),
-		senjaui.WithSize(230, 170),
+		senjaui.WithSize(230, 160),
 		senjaui.WithAnchor(senjaui.AnchorBottomLeft),
 		senjaui.WithPivot(senjaui.PivotBottomLeft),
 		senjaui.WithPaddingAll(12),
-		senjaui.WithNineSliceConfig(cardAcceptCfg),
+		senjaui.WithImage(cardAcceptImg, 6, 6, 6, 6),
 		senjaui.WithContainerLayout(widget.NewRowLayout(
 			widget.RowLayoutOpts.Direction(widget.DirectionVertical),
 			widget.RowLayoutOpts.Spacing(8),
@@ -146,15 +222,21 @@ func (g *Game) setupUI() {
 	g.cardAccept.AddWidget(card1Desc)
 	g.cardAccept.AddWidget(btnAccept)
 
-	// 4. Build Nested Card 2: Dismiss / Tactical Retreat Card (Anchored bottom-right)
+	// 3. Build Nested Card 2: Dismiss Card (Raster 9-slice, bottom-right)
+	cardDismissImg := senjaui.CreateProceduralNineSliceImage(
+		24, 4,
+		color.RGBA{38, 18, 22, 245},
+		color.RGBA{231, 76, 60, 255},
+		2,
+	)
 	g.cardDismiss = senjaui.NewBanner(
 		senjaui.WithID("card-dismiss"),
 		senjaui.WithPosition(-24, -20),
-		senjaui.WithSize(230, 170),
+		senjaui.WithSize(230, 160),
 		senjaui.WithAnchor(senjaui.AnchorBottomRight),
 		senjaui.WithPivot(senjaui.PivotBottomRight),
 		senjaui.WithPaddingAll(12),
-		senjaui.WithNineSliceConfig(cardDismissCfg),
+		senjaui.WithImage(cardDismissImg, 6, 6, 6, 6),
 		senjaui.WithContainerLayout(widget.NewRowLayout(
 			widget.RowLayoutOpts.Direction(widget.DirectionVertical),
 			widget.RowLayoutOpts.Spacing(8),
@@ -179,12 +261,25 @@ func (g *Game) setupUI() {
 	g.cardDismiss.AddWidget(card2Desc)
 	g.cardDismiss.AddWidget(btnDismiss)
 
-	// 5. Establish hierarchy: Add both cards to Parent Banner!
+	// 4. Establish hierarchy: Add both cards as children to Parent Banner!
 	g.banner.AddChild(g.cardAccept)
 	g.banner.AddChild(g.cardDismiss)
 
-	// 6. Connect to EbitenUI canvas
+	// 5. Connect to EbitenUI canvas
 	g.ui = senjaui.NewUI(g.banner)
+}
+
+// cycleSkin demonstrates dynamically changing the 9-slice image at runtime!
+func (g *Game) cycleSkin() {
+	g.currentSkin = (g.currentSkin + 1) % len(g.skins)
+	s := g.skins[g.currentSkin]
+
+	// Dynamically update the banner's nine-slice image:
+	// Child relative transforms, padding, and layout remain perfectly preserved!
+	g.banner.SetImage(s.Image, s.Top, s.Right, s.Bottom, s.Left)
+
+	g.statusText = fmt.Sprintf("Dynamic Image Swap -> Switched to: %s", s.Name)
+	g.banner.TriggerContentClick("action:swap-skin")
 }
 
 func (g *Game) Update() error {
@@ -196,10 +291,15 @@ func (g *Game) Update() error {
 	// 2. Update EbitenUI input and events
 	g.ui.Update()
 
-	// 3. Interactive keyboard controls for live demonstration:
+	// 3. Interactive keyboard controls:
 	// Space: Toggle banner open/close
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.banner.Toggle()
+	}
+
+	// C or S: Dynamically swap the nine-slice image at runtime!
+	if inpututil.IsKeyJustPressed(ebiten.KeyC) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
+		g.cycleSkin()
 	}
 
 	// 1: Scale-In
@@ -232,11 +332,11 @@ func (g *Game) Update() error {
 		g.sizeMode = (g.sizeMode + 1) % 3
 		switch g.sizeMode {
 		case 0:
-			g.banner.SetSize(560, 320)
+			g.banner.SetSize(560, 330)
 		case 1:
-			g.banner.SetSize(620, 350)
+			g.banner.SetSize(620, 360)
 		case 2:
-			g.banner.SetSize(520, 300)
+			g.banner.SetSize(520, 310)
 		}
 		g.statusText = fmt.Sprintf("Parent resized to: %.0fx%.0f (children automatically realigned!)", g.banner.Width, g.banner.Height)
 	}
@@ -245,7 +345,7 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// Dark grid backdrop
+	// Dark background
 	screen.Fill(color.RGBA{12, 14, 20, 255})
 
 	// Render EbitenUI canvas (Parent banner & nested cards)
@@ -253,9 +353,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Render HUD information overlay
 	hudY := 20.0
-	g.drawText(screen, "=== SENJAUI HIERARCHICAL NINE-SLICE BANNER SYSTEM ===", 20, hudY, color.RGBA{255, 215, 0, 255})
+	g.drawText(screen, "=== SENJAUI DYNAMIC NINE-SLICE BANNER (NO VECTORS) ===", 20, hudY, color.RGBA{255, 215, 0, 255})
 	hudY += 20
-	g.drawText(screen, fmt.Sprintf("Controls: [Space] Toggle | [1-4] Anim: %s | [R] Resize Parent", g.animStyle), 20, hudY, color.RGBA{180, 190, 210, 255})
+	currentSkinName := g.skins[g.currentSkin].Name
+	g.drawText(screen, fmt.Sprintf("Active Texture: %s | Press [C] or button to Swap Image", currentSkinName), 20, hudY, color.RGBA{100, 255, 200, 255})
+	hudY += 20
+	g.drawText(screen, fmt.Sprintf("Controls: [Space] Open/Close | [C] Swap Image | [1-4] Anim: %s | [R] Resize", g.animStyle), 20, hudY, color.RGBA{180, 190, 210, 255})
 	hudY += 20
 	g.drawText(screen, g.statusText, 20, hudY, color.RGBA{100, 220, 255, 255})
 	hudY += 20
@@ -285,7 +388,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("SenjaUI - Hierarchical Nine-Slice Banner & Card System")
+	ebiten.SetWindowTitle("SenjaUI - Dynamic Nine-Slice Banner & Card System")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	game := NewGame()
@@ -293,4 +396,3 @@ func main() {
 		log.Fatalf("Game loop error: %v", err)
 	}
 }
-

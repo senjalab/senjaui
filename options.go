@@ -5,6 +5,7 @@ import (
 
 	eimage "github.com/ebitenui/ebitenui/image"
 	"github.com/ebitenui/ebitenui/widget"
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // BannerOption represents a functional option for configuring a Banner.
@@ -72,6 +73,30 @@ func WithPivot(pivot Pivot) BannerOption {
 func WithNineSliceConfig(cfg NineSliceConfig) BannerOption {
 	return func(b *Banner) {
 		b.nineSliceConfig = cfg
+	}
+}
+
+// WithImage configures the banner with an ebiten.Image and explicit edge margins.
+func WithImage(img *ebiten.Image, top, right, bottom, left int) BannerOption {
+	return func(b *Banner) {
+		b.nineSliceConfig = NewNineSliceFromImage(img, top, right, bottom, left)
+	}
+}
+
+// WithImageAuto configures the banner with an ebiten.Image and automatically detected margins.
+func WithImageAuto(img *ebiten.Image) BannerOption {
+	return func(b *Banner) {
+		b.nineSliceConfig = NewNineSliceAuto(img)
+	}
+}
+
+// WithImageFile loads an image from file and configures the banner's nine-slice.
+func WithImageFile(path string, top, right, bottom, left int) BannerOption {
+	return func(b *Banner) {
+		img, err := LoadImageFromFile(path)
+		if err == nil {
+			b.nineSliceConfig = NewNineSliceFromImage(img, top, right, bottom, left)
+		}
 	}
 }
 

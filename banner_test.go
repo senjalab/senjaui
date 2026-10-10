@@ -381,3 +381,62 @@ func TestBanner_DirectDrawCall(t *testing.T) {
 	parent.Draw(screen)
 }
 
+func TestBanner_DetectMarginsWithAsset(t *testing.T) {
+	_, cfg, err := LoadNineSliceImageFile("assets/ui_banner.png")
+	if err != nil {
+		t.Fatalf("failed to load assets/ui_banner.png: %v", err)
+	}
+
+	if cfg.Top != 6 || cfg.Right != 6 || cfg.Bottom != 6 || cfg.Left != 6 {
+		t.Fatalf("expected detected margins (6, 6, 6, 6) for assets/ui_banner.png, got (%d, %d, %d, %d)",
+			cfg.Top, cfg.Right, cfg.Bottom, cfg.Left)
+	}
+}
+
+func TestBanner_DynamicImageSwapping(t *testing.T) {
+	img1, err := LoadImageFromFile("assets/ui_banner.png")
+	if err != nil {
+		t.Fatalf("failed to load assets/ui_banner.png: %v", err)
+	}
+
+	// Create banner with initial image (assets/ui_banner.png)
+	banner := NewBanner(
+		WithID("dynamic-banner"),
+		WithPosition(50, 50),
+		WithSize(400, 250),
+		WithImage(img1, 6, 6, 6, 6),
+	)
+
+	child := NewBanner(
+		WithID("nested-card"),
+		WithPosition(20, 20),
+		WithSize(120, 80),
+	)
+	banner.AddChild(child)
+
+	screen := ebiten.NewImage(600, 400)
+	banner.Draw(screen)
+
+	cxBefore, cyBefore, _, _ := child.GetWorldBounds()
+
+	// Dynamically swap image at runtime to another raster texture
+	img2 := CreateProceduralNineSliceImage(32, 4, color.RGBA{40, 50, 70, 255}, color.RGBA{0, 200, 255, 255}, 3)
+	banner.SetImage(img2, 8, 8, 8, 8)
+
+	// Draw again with new image
+	banner.Draw(screen)
+
+	// Ensure hierarchy and child transforms are maintained
+	cxAfter, cyAfter, _, _ := child.GetWorldBounds()
+	if cxBefore != cxAfter || cyBefore != cyAfter {
+		t.Fatalf("expected child position to remain intact across image swap, before: (%v, %v), after: (%v, %v)",
+			cxBefore, cyBefore, cxAfter, cyAfter)
+	}
+
+	// Test SetImageAuto
+	img3 := CreateProceduralNineSliceImage(40, 5, color.RGBA{70, 20, 30, 255}, color.RGBA{255, 100, 50, 255}, 4)
+	banner.SetImageAuto(img3)
+	banner.Draw(screen)
+}
+
+

@@ -32,7 +32,7 @@ func TestGameLoopExecution(t *testing.T) {
 
 	// Test clicking child card and bubbling
 	game.cardAccept.TriggerContentClick("card-accept:btn-accept")
-	if game.lastClickLog != `Parent Banner received click from childID: "card-accept:btn-accept"` {
+	if game.lastClickLog != `Parent Banner caught click from: "card-accept:btn-accept"` {
 		t.Fatalf("unexpected lastClickLog: %q", game.lastClickLog)
 	}
 
@@ -55,5 +55,15 @@ func TestGameLoopExecution(t *testing.T) {
 	if !game.banner.IsOpen() {
 		t.Fatalf("expected banner to be open")
 	}
+
+	// Test dynamic image/skin swap
+	prevSkin := game.currentSkin
+	game.cycleSkin()
+	if game.currentSkin == prevSkin {
+		t.Fatalf("expected currentSkin to advance after cycleSkin")
+	}
+	game.Update()
+	game.Draw(screen)
 }
+
 

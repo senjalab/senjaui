@@ -1,8 +1,13 @@
 package senjaui
 
 import (
+	"bytes"
+	"fmt"
 	"image"
 	"image/color"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
 
 	eimage "github.com/ebitenui/ebitenui/image"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -202,4 +207,181 @@ func CreateProceduralNineSliceImage(size int, cornerRadius int, fill, border col
 
 	return img
 }
+
+// LoadImageFromFile decodes an image file from disk and returns an *ebiten.Image.
+func LoadImageFromFile(path string) (*ebiten.Image, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("senjaui: failed to read image file %q: %w", path, err)
+	}
+	return LoadImageFromBytes(data)
+}
+
+// MustLoadImageFromFile loads an image from disk and panics if an error occurs.
+func MustLoadImageFromFile(path string) *ebiten.Image {
+	img, err := LoadImageFromFile(path)
+	if err != nil {
+		panic(err)
+	}
+	return img
+}
+
+// LoadImageFromBytes decodes an image from byte slice and returns an *ebiten.Image.
+func LoadImageFromBytes(data []byte) (*ebiten.Image, error) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("senjaui: failed to decode image: %w", err)
+	}
+	return ebiten.NewImageFromImage(img), nil
+}
+
+// DetectNineSliceMargins dynamically analyzes a raster image to detect optimal 9-slice edge margins (Top, Right, Bottom, Left).
+// It identifies transparent padding and the boundary where decorative borders transition into the interior center fill.
+// LoadNineSliceImageFile loads an image file from disk, automatically analyzes its margins,
+// and returns both the *ebiten.Image and a configured NineSliceConfig.
+func LoadNineSliceImageFile(path string) (*ebiten.Image, NineSliceConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, NineSliceConfig{}, fmt.Errorf("senjaui: failed to read %q: %w", path, err)
+	}
+	return LoadNineSliceImageBytes(data)
+}
+
+// MustLoadNineSliceImageFile loads an image file and returns an *ebiten.Image and NineSliceConfig, panicking on error.
+func MustLoadNineSliceImageFile(path string) (*ebiten.Image, NineSliceConfig) {
+	ebImg, cfg, err := LoadNineSliceImageFile(path)
+	if err != nil {
+		panic(err)
+	}
+	return ebImg, cfg
+}
+
+// LoadNineSliceImageBytes decodes image bytes and returns the *ebiten.Image and optimal NineSliceConfig.
+func LoadNineSliceImageBytes(data []byte) (*ebiten.Image, NineSliceConfig, error) {
+	stdImg, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, NineSliceConfig{}, fmt.Errorf("senjaui: failed to decode image: %w", err)
+	}
+
+	top, right, bottom, left := DetectNineSliceMargins(stdImg)
+	ebImg := ebiten.NewImageFromImage(stdImg)
+	cfg := NewNineSliceConfig(ebImg, top, right, bottom, left)
+	return ebImg, cfg, nil
+}
+
+// DetectNineSliceMargins dynamically analyzes a raster image to detect optimal 9-slice edge margins (Top, Right, Bottom, Left).
+// It identifies transparent padding and the boundary where decorative borders transition into the interior center fill.
+func DetectNineSliceMargins(img image.Image) (top, right, bottom, left int) {
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	if w <= 0 || h <= 0 {
+		return 0, 0, 0, 0
+	}
+
+	// Safe fallback in case img is an uninitialized *ebiten.Image outside game loop
+	fallbackTop := max(1, h/4)
+	fallbackBottom := fallbackTop
+	fallbackLeft := max(1, w/4)
+	fallbackRight := fallbackLeft
+
+	defer func() {
+		if r := recover(); r != nil {
+			top, right, bottom, left = fallbackTop, fallbackRight, fallbackBottom, fallbackLeft
+		}
+	}()
+
+	// 1. Detect content bounding box (skipping transparent outer margins)
+	minX, minY, maxX, maxY := w, h, -1, -1
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			_, _, _, a := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+			if a > 0 {
+				if x < minX {
+					minX = x
+				}
+				if x > maxX {
+					maxX = x
+				}
+				if y < minY {
+					minY = y
+				}
+				if y > maxY {
+					maxY = y
+				}
+			}
+		}
+	}
+
+	if maxX < minX || maxY < minY {
+		return fallbackTop, fallbackRight, fallbackBottom, fallbackLeft
+	}
+
+	// 2. Scan inward from content bounds toward center to find where uniform interior fill begins
+	centerX := (minX + maxX) / 2
+	centerY := (minY + maxY) / 2
+	centerCol := img.At(bounds.Min.X+centerX, bounds.Min.Y+centerY)
+
+	// Top margin
+	top = minY + 1
+	for y := minY; y <= centerY; y++ {
+		if img.At(bounds.Min.X+centerX, bounds.Min.Y+y) == centerCol {
+			top = y
+			break
+		}
+	}
+
+	// Bottom margin
+	bottom = (h - 1 - maxY) + 1
+	for y := maxY; y >= centerY; y-- {
+		if img.At(bounds.Min.X+centerX, bounds.Min.Y+y) == centerCol {
+			bottom = h - 1 - y
+			break
+		}
+	}
+
+	// Left margin
+	left = minX + 1
+	for x := minX; x <= centerX; x++ {
+		if img.At(bounds.Min.X+x, bounds.Min.Y+centerY) == centerCol {
+			left = x
+			break
+		}
+	}
+
+	// Right margin
+	right = (w - 1 - maxX) + 1
+	for x := maxX; x >= centerX; x-- {
+		if img.At(bounds.Min.X+x, bounds.Min.Y+centerY) == centerCol {
+			right = w - 1 - x
+			break
+		}
+	}
+
+	// Sanity clamping: ensure margins don't exceed half the image dimensions
+	if top+bottom >= h {
+		top = h / 4
+		bottom = h / 4
+	}
+	if left+right >= w {
+		left = w / 4
+		right = w / 4
+	}
+
+	return top, right, bottom, left
+}
+
+// NewNineSliceAuto creates a NineSliceConfig from an ebiten image with automatically detected edge margins.
+func NewNineSliceAuto(img *ebiten.Image) NineSliceConfig {
+	if img == nil {
+		return NewNineSliceColorConfig(color.Transparent)
+	}
+	top, right, bottom, left := DetectNineSliceMargins(img)
+	return NewNineSliceConfig(img, top, right, bottom, left)
+}
+
+// NewNineSliceFromImage creates a NineSliceConfig from an ebiten image with explicit edge margins.
+func NewNineSliceFromImage(img *ebiten.Image, top, right, bottom, left int) NineSliceConfig {
+	return NewNineSliceConfig(img, top, right, bottom, left)
+}
+
 

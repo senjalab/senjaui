@@ -137,7 +137,25 @@ Convenience constructors:
 - `NewNineSliceAdvancedConfig(fill color.Color, top, right, bottom, left int, borderColor color.Color)`
 - `CreateProceduralNineSliceImage(size, cornerRadius int, fill, border color.Color, borderWidth int)`
 
-### 2. Hierarchical Transforms & Anchoring
+### 2. Dynamic Image Swapping (No Vectors)
+
+SenjaUI uses pure raster textures and 9-slice slicing—never vector rendering. You can dynamically swap the 9-slice image texture at runtime, and the container automatically re-slices while preserving all child transforms:
+
+```go
+// 1. Load an image file and auto-detect 9-slice margins (e.g. assets/ui_banner.png)
+ebImg, cfg, err := senjaui.LoadNineSliceImageFile("assets/ui_banner.png")
+banner := senjaui.NewBanner(
+    senjaui.WithImage(ebImg, cfg.Top, cfg.Right, cfg.Bottom, cfg.Left),
+    senjaui.WithSize(500, 300),
+)
+
+// 2. Dynamically swap the image at runtime
+banner.SetImage(newImg, 6, 6, 6, 6)
+// or auto-detect margins:
+banner.SetImageAuto(newImg)
+```
+
+### 3. Hierarchical Transforms & Anchoring
 
 Children calculate positions relative to parent content bounds:
 
@@ -151,7 +169,7 @@ Presets available:
 
 When a parent's size or position changes via `banner.SetSize(w, h)` or `banner.SetPosition(x, y)`, child positions update automatically across all descendants.
 
-### 3. Event Hooks & Bubbling
+### 4. Event Hooks & Bubbling
 
 - `banner.OnOpen(func())`
 - `banner.OnClose(func())`
@@ -159,7 +177,7 @@ When a parent's size or position changes via `banner.SetSize(w, h)` or `banner.S
 
 When a child node or card triggers a click via `child.TriggerContentClick("card-id")`, the event bubbles up through its ancestor chain, allowing the root banner to handle events centrally.
 
-### 4. Animation Interpolation
+### 5. Animation Interpolation
 
 Smooth transitions on open/close:
 - `AnimScaleIn`: Scales smoothly around pivot
@@ -178,6 +196,7 @@ Easing options: `EaseLinear`, `EaseOutQuad`, `EaseInOutQuad`, `EaseOutCubic`, `E
 go run ./examples/notification
 ```
 
+- **[C]** or **Button**: Dynamically swap the 9-slice image texture at runtime (cycles `assets/ui_banner.png`, Cyber Neon, Ancient Gold, Molten Obsidian)
 - **[Space]**: Toggle open / close animation
 - **[1 - 4]**: Switch animation style (Scale, Fade, Scale & Fade, Slide-In)
 - **[R]**: Cycle parent banner size to demonstrate automatic child realignment
