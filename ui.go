@@ -85,11 +85,29 @@ func CreateStyledButton(label string, face *text.Face, idleColor, hoverColor, pr
 	return btn
 }
 
-// CreateLabel constructs an EbitenUI text widget.
+// CreateLabel constructs an EbitenUI text widget with centered text.
 func CreateLabel(content string, face *text.Face, col color.Color) *widget.Text {
 	return widget.NewText(
 		widget.TextOpts.Text(content, face, col),
 		widget.TextOpts.Position(widget.TextPositionCenter, widget.TextPositionCenter),
 	)
 }
+
+// CreateLeftLabel constructs an EbitenUI text widget aligned to start (left) to keep text within parent bounds.
+func CreateLeftLabel(content string, face *text.Face, col color.Color) *widget.Text {
+	return widget.NewText(
+		widget.TextOpts.Text(content, face, col),
+		widget.TextOpts.Position(widget.TextPositionStart, widget.TextPositionCenter),
+	)
+}
+
+// CreateLeftLabelWithMaxWidth constructs an EbitenUI text widget aligned to start with a maximum width constraint.
+func CreateLeftLabelWithMaxWidth(content string, face *text.Face, col color.Color, maxWidth float64) *widget.Text {
+	return widget.NewText(
+		widget.TextOpts.Text(content, face, col),
+		widget.TextOpts.Position(widget.TextPositionStart, widget.TextPositionCenter),
+		widget.TextOpts.MaxWidth(maxWidth),
+	)
+}
+
 

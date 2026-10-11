@@ -272,10 +272,21 @@ func (b *Banner) recomputeLayout() {
 	if b.container != nil {
 		rect := image.Rect(int(wx), int(wy), int(wx+ww), int(wy+wh))
 		b.container.SetLocation(rect)
+		b.container.RequestRelayout()
 	}
 
 	for _, child := range b.Children {
 		child.recomputeLayout()
+	}
+}
+
+// RequestRelayout marks this banner container and all its child containers dirty so their layouts re-synchronize.
+func (b *Banner) RequestRelayout() {
+	if b.container != nil {
+		b.container.RequestRelayout()
+	}
+	for _, child := range b.Children {
+		child.RequestRelayout()
 	}
 }
 
