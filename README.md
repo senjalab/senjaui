@@ -188,19 +188,71 @@ Smooth transitions on open/close:
 
 Easing options: `EaseLinear`, `EaseOutQuad`, `EaseInOutQuad`, `EaseOutCubic`, `EaseOutBack`, `EaseOutBounce`.
 
+### 6. Interactive Graph Nodes (`CanvasNode[T]` & `CanvasGraph[T]`)
+
+`CanvasNode[T]` is an interactive, visual graph node decoupled from game-specific logic, specifically designed for **skill trees, tech research progression, dialogue trees, and node graphs**.
+
+It stores 9-slice visual assets, directed graph relationships (`InboundIDs`, `OutboundIDs`), a generic domain payload `Data T`, and provides AABB spatial collision methods compatible with spatial interaction libraries like [`senjalab/interaksi`](https://github.com/senjalab/interaksi):
+
+```go
+type SkillData struct {
+    Name     string
+    Cost     int
+    Unlocked bool
+}
+
+// 1. Create CanvasNode with 9-slice image and domain payload
+node := senjaui.NewCanvasNode(
+    "power_strike",
+    150, 100, 120, 70,
+    SkillData{Name: "Power Strike", Cost: 50},
+    senjaui.WithNodeImage[SkillData](img, 6, 6, 6, 6),
+)
+
+// 2. Spatial queries & AABB interaction
+aabb := node.AABB() // MinX, MinY, MaxX, MaxY
+if node.Contains(mouseX, mouseY) {
+    // Hovered!
+}
+
+// 3. Connect directed graph relationships in a CanvasGraph
+graph := senjaui.NewCanvasGraph[SkillData]()
+graph.AddNode(node)
+graph.Connect("iron_will", "power_strike") // iron_will -> power_strike
+
+// Check prerequisite progression
+if graph.PrerequisitesMet("power_strike", unlockedMap) {
+    // Unlocked or available!
+}
+
+// Render graph with hardware raster lines (NO VECTORS)
+graph.Draw(screen)
+```
+
 ---
 
-## Running the Example
+## Running the Examples
 
+### 1. Notification Banner & Nested Cards Example
 ```bash
 go run ./examples/notification
 ```
-
-- **[C]** or **Button**: Dynamically swap the 9-slice image texture at runtime (cycles `assets/ui_banner.png`, Cyber Neon, Ancient Gold, Molten Obsidian)
+- **[C]** or **Button**: Dynamically swap 9-slice image textures at runtime
 - **[Space]**: Toggle open / close animation
 - **[1 - 4]**: Switch animation style (Scale, Fade, Scale & Fade, Slide-In)
 - **[R]**: Cycle parent banner size to demonstrate automatic child realignment
 - **Click cards / buttons**: Demonstrates hierarchical event bubbling
+
+### 2. Interactive Skill Tree Graph Example
+```bash
+go run ./examples/skilltree
+```
+- **Click available (green) nodes**: Unlocks skills and activates downstream prerequisite branches
+- **Hover**: Real-time AABB hit-testing displays skill stats in bottom inspector card
+- **[W/A/S/D] or [Right-Click Drag]**: Pan graph canvas
+- **[+/-]**: Zoom camera in and out
+- **[P]**: Add bonus Skill Points
+- **[R]**: Reset view and camera position
 
 ---
 
